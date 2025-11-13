@@ -1,0 +1,48 @@
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    branches:
+      - "**"
+  push:
+    branches:
+      - main
+
+jobs:
+
+  # -----------------------------
+  # Continuous Integration (PR)
+  # -----------------------------
+  ci:
+    name: CI - Pull Request
+    runs-on: ubuntu-latest
+
+    services:
+      docker:
+        image: docker:20.10.16
+        options: --privileged
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install locust
+
+      - name: Run unit tests
+        run: pytest -v
+
+      - name: Run short load test (Locust)
+        run: |
+          # Стартираме FastAPI сървъра във фонов процес
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 5  # изчакваме сървъра да стартира
+          locust --headless -u 10 -r 5 -t 30s -H http://127.0.0.1:8000
